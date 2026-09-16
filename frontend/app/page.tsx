@@ -571,6 +571,7 @@ export default function Home() {
               selectedEvent={
                 selectedEventIndex >= 0 ? selectedEventIndex : null
               }
+              selectedRegion={selectedRegion}
               onSelectEvent={(index) => {
                 const event = filteredEvents[index];
 

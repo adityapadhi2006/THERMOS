@@ -71,6 +71,8 @@ type ThermalMapProps = {
 
   selectedEvent: number | null;
 
+  selectedRegion: RegionalHotspot | null;
+
   onSelectEvent: (index: number) => void;
 
   onSelectRegion: (region: RegionalHotspot) => void;
@@ -87,7 +89,21 @@ function safeFixed(value: number | null | undefined, digits = 1) {
     ? value.toFixed(digits)
     : "0";
 }
-
+function isValidCoordinate(
+  latitude: unknown,
+  longitude: unknown,
+): latitude is number {
+  return (
+    typeof latitude === "number" &&
+    Number.isFinite(latitude) &&
+    typeof longitude === "number" &&
+    Number.isFinite(longitude) &&
+    latitude >= -90 &&
+    latitude <= 90 &&
+    longitude >= -180 &&
+    longitude <= 180
+  );
+}
 /* ============================================================
    RISK COLOR
 ============================================================ */
@@ -220,9 +236,15 @@ function FitMapToEvents({ events }: { events: ThermalEvent[] }) {
     if (!events.length) {
       return;
     }
+    const validEvents = events.filter((event) =>
+      isValidCoordinate(event.latitude, event.longitude),
+    );
 
+    if (!validEvents.length) {
+      return;
+    }
     const bounds = L.latLngBounds(
-      events.map((event) => [event.latitude, event.longitude]),
+      validEvents.map((event) => [event.latitude, event.longitude]),
     );
 
     map.fitBounds(bounds, {
@@ -249,7 +271,14 @@ function MapFocus({
   const map = useMap();
 
   useEffect(() => {
-    if (selectedEvent !== null && events[selectedEvent]) {
+    if (
+      selectedEvent !== null &&
+      events[selectedEvent] &&
+      isValidCoordinate(
+        events[selectedEvent].latitude,
+        events[selectedEvent].longitude,
+      )
+    ) {
       const event = events[selectedEvent];
 
       map.flyTo([event.latitude, event.longitude], 12, {
@@ -266,17 +295,16 @@ function MapFocus({
 
 function RegionalIntelligenceLayer({
   regions,
+  selectedRegion,
   onSelectRegion,
 }: {
   regions: RegionalHotspot[];
+  selectedRegion: RegionalHotspot | null;
   onSelectRegion: (region: RegionalHotspot) => void;
 }) {
   const map = useMap();
 
   const [zoom, setZoom] = useState(map.getZoom());
-  const [selectedRegion, setSelectedRegion] = useState<RegionalHotspot | null>(
-    null,
-  );
 
   useEffect(() => {
     const handleZoom = () => {
@@ -304,13 +332,13 @@ function RegionalIntelligenceLayer({
   let fillOpacity = 0.12;
   let borderOpacity = 0.24;
 
-  if (zoom >= 16) {
+  if (zoom >= 13) {
     fillOpacity = 0;
     borderOpacity = 0;
-  } else if (zoom === 14) {
+  } else if (zoom === 12) {
     fillOpacity = 0.04;
     borderOpacity = 0.12;
-  } else if (zoom >= 9) {
+  } else if (zoom >= 10) {
     fillOpacity = 0.07;
     borderOpacity = 0.16;
   }
@@ -350,7 +378,7 @@ function RegionalIntelligenceLayer({
             }}
             eventHandlers={{
               click: () => {
-                setSelectedRegion(region);
+                
                 onSelectRegion(region);
               },
             }}
@@ -479,8 +507,10 @@ function VisibleEventCounter({ events }: { events: ThermalEvent[] }) {
     const updateVisibleCount = () => {
       const bounds = map.getBounds();
 
-      const count = events.filter((event) =>
-        bounds.contains([event.latitude, event.longitude]),
+      const count = events.filter(
+        (event) =>
+          isValidCoordinate(event.latitude, event.longitude) &&
+          bounds.contains([event.latitude, event.longitude]),
       ).length;
 
       setVisibleCount(count);
@@ -528,6 +558,7 @@ function VisibleEventCounter({ events }: { events: ThermalEvent[] }) {
 export default function ThermalMap({
   events,
   selectedEvent,
+  selectedRegion,
   onSelectEvent,
   onSelectRegion,
   regionalHotspots,
@@ -580,6 +611,7 @@ export default function ThermalMap({
 
       <RegionalIntelligenceLayer
         regions={regionalHotspots}
+        selectedRegion={selectedRegion}
         onSelectRegion={onSelectRegion}
       />
       {/* ======================================================
@@ -590,7 +622,7 @@ export default function ThermalMap({
           Their ONLY purpose is to let Leaflet calculate
           density and render a subtle cluster indicator.
       ====================================================== */}
-      {mapZoom >= 9 && (
+      {mapZoom >= 12 && (
         <MarkerClusterGroup
           chunkedLoading
           chunkInterval={100}
@@ -606,6 +638,10 @@ export default function ThermalMap({
         >
           {mapZoom >= 12 &&
             sortedEvents.map(({ event, originalIndex }) => {
+              if (!isValidCoordinate(event.latitude, event.longitude)) {
+                return null;
+              }
+
               return (
                 <CircleMarker
                   key={`cluster-${event.latitude}-${event.longitude}-${originalIndex}`}
@@ -639,6 +675,9 @@ export default function ThermalMap({
       ====================================================== */}
 
       {sortedEvents.map(({ event, originalIndex }) => {
+        if (!isValidCoordinate(event.latitude, event.longitude)) {
+          return null;
+        }
         const color = getRiskColor(event.risk_level);
 
         const isSelected = selectedEvent === originalIndex;
