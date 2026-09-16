@@ -1,7 +1,20 @@
+import os
 import pandas as pd
 
 
-FIRMS_PATH = r"C:\Projects\THERMOS\data\fire_nrt_SV-C2_805782.csv"
+BASE_DIR = os.path.dirname(
+    os.path.dirname(
+        os.path.dirname(
+            os.path.dirname(__file__)
+        )
+    )
+)
+
+FIRMS_PATH = os.path.join(
+    BASE_DIR,
+    "data",
+    "fire_nrt_SV-C2_805782.csv"
+)
 
 
 def load_firms():
